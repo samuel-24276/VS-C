@@ -17,13 +17,8 @@ class Rear
 public:
     friend class Handler; //将Handler设置为Rear的友元类，实现H对R内数据的访问和修改
     friend class Front;   //将Front设置为Rear的友元类，实现F对R内数据的访问和修改
-    Type **dis = NULL;
-    Type **speed = NULL;
-    Type **time = NULL;
-    Type **path = NULL; //path[][]为中介点数组，可以通过它获取最短路径
-    Type *d = NULL;     //顶点与集合S的最短距离
     //把本地文件的数据读入程序中的二维数组matrix
-    void dataWrite(Type **matrix, string filename);
+    void dataWrite();
     Type **dym_arr(Type **arr);
     Rear() //为各个矩阵申请空间
     {
@@ -48,16 +43,27 @@ public:
         delete[] path;
         delete[] d;
     }
+private:
+    Type **dis = NULL;
+    Type **speed = NULL;
+    Type **time = NULL;
+    Type **path = NULL; //path[][]为中介点数组，可以通过它获取最短路径
+    Type *d = NULL;     //顶点与集合S的最短距离
 };
 
 //把本地文件的数据读入程序中的二维数组matrix
-void Rear::dataWrite(Type **matrix, string filename)
+void Rear::dataWrite()
 {
-    ifstream file(filename, ios::in); //打开文件指针
+    ifstream file1("dis.txt", ios::in); //打开文件指针
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++)
-            file >> matrix[i][j]; //将文件数据读入二维数组
-    file.close();                 //关闭文件指针
+            file1 >> dis[i][j]; //将距离数据读入二维数组
+    file1.close();                 //关闭文件指针
+    ifstream file2("speed.txt", ios::in); //打开文件指针
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++)
+            file2 >> speed[i][j]; //将速度数据读入二维数组
+    file2.close();                 //关闭文件指针
 }
 
 Type **Rear::dym_arr(Type **arr)
@@ -205,19 +211,19 @@ double Handler::mttc(Rear& r, vector<vector<int>>& arr_mttc)//最小环城时间
     double mttc = 0;
     int t1 = arr_mttc[0][0], s1 = arr_mttc[0][arr_mttc[0].size()-1];
     mttc += r.time[s1][t1];
-    //cout << s1 << " " << t1 << endl;
+    cout << s1 << "->" << t1 << endl;
     for(int i = 1; i < n - 1;++i)
     {
         int t2=arr_mttc[i][0], s2 =arr_mttc[i][arr_mttc[i].size()-1];
         if(s1==s2)
         {
             mttc += r.time[s1][t1];
-            //cout << t1 << " " << s1 << endl;  
+            cout << t1 << "->" << s1 << endl;  
         }
         else
             s1 = s2; 
         mttc += r.time[s2][t2];  
-        //cout << s2 << " " << t2 << endl;      
+        cout << s2 << "->" << t2 << endl;      
         t1 = t2;
     }
     return mttc;
@@ -288,9 +294,10 @@ public:
     map<int, string> cityMap;
     Front() {}
     ~Front() {}
-    void gra_info();                                                //获取创建图所需的基本信息
-    void show_gra_info();                                           //显示图的标号和实际地区的对应表
-    void print(Type **matrix, int m);                               //显示矩阵内的数据
+    void gra_info();         //获取创建图所需的基本信息
+    void show_gra_info();   //显示图的标号和实际地区的对应表
+    //默认显示time矩阵内的数据,flag=1显示path，2显示dis,3显示speed,m<=n,默认m=n
+    void print(Rear& r, int flag, int m);
     void showMid(vector<int> &shortestPath, int s, int t); //显示从s到t包含中介点的最短路径
     //显示从起点0到终点n的最小生成树的最短路径，并将其结果存储在二维数组作为返回值
     vector<vector<int>> showShortestPath(Handler& h, Rear& r, int size, vector<pair<int, int>> res);
@@ -321,8 +328,24 @@ void Front::show_gra_info()
     }
 }
 
-void Front::print(Type **matrix, int m = n) //默认参数为顶点个数，也可以自己设置,但m<n
+void Front::print(Rear& r, int flag=0, int m = n) //默认参数为顶点个数，也可以自己设置,但m<n
 {
+    Type** matrix;
+    switch(flag)
+    {
+        case 1:
+            matrix = r.path;
+            break;
+        case 2:
+            matrix = r.dis;
+            break;
+        case 3:
+            matrix = r.speed;
+            break;
+        default:
+            matrix = r.time;
+            break;
+    }
     cout.setf(ios::fixed);
     for (int i = 0; i < m; i++)
     {
@@ -368,36 +391,40 @@ vector<vector<int>> Front::showShortestPath(Handler& h, Rear& r, int size, vecto
 
 int main()
 {
-    Front f; //前端
+    Front f; //前端显示页面
     //=======================获取图的信息===============================
     f.gra_info();
-    f.show_gra_info();
     //=======================读取数据并写入数组========================
     Rear r; //后端存储数据
-    r.dataWrite(r.dis, "dis.txt");
-    //f.print(r.dis, n);
-    r.dataWrite(r.speed, "speed.txt");
-    //f.print(r.speed, n);
+    r.dataWrite();
+    cout << "初始距离矩阵为：" << endl;
+    f.print(r, 2);
+    cout << "初始速度矩阵为：" << endl;
+    f.print(r, 3);
     //===============计算平均可达时间和可达时间偏差率================================
     Handler h; //处理端，对数据进行处理
     h.Time(r);
-    cout << "初始化的可达时间矩阵为：" << endl;
-    f.print(r.time);
+    cout << "初始可达时间矩阵为：" << endl;
+    f.print(r);
     //===================获取最短可达时间并记录中间节点==========================
     h.floyd(r);
     cout << "Floyd算法处理后的可达时间矩阵为：" << endl;
-    f.print(r.time);
+    f.print(r);
     cout << "走过的中间节点矩阵为：" << endl;
-    f.print(r.path);
+    f.print(r, 1);
     //====================展示围绕城市一周走过的路径====================
     pair<Type, vector<pair<int, int>>> res = h.prim(r);
     cout << "最小生成树的边权之和为：" << res.first << endl;
     int size = res.second.size();
     //arr_mttc存储最小生成树的行走路线
+    f.show_gra_info();
+    cout << "最小生成树的路径为：" << endl;
     vector<vector<int>> arr_mttc = f.showShortestPath(h, r, size, res.second);
     //====================计算最小环城时间和最终得分======================
-    cout << "最小环城时间：" << h.mttc(r, arr_mttc) << endl;
-    cout << "最终得分：" << h.evaluate(r) << endl;
+    cout << "环城路线为:" << endl;
+    double mttc = h.mttc(r, arr_mttc);
+    cout << "最小环城时间：" << mttc << endl;
+    cout << "交通情况的最终得分：" << h.evaluate(r) << endl;
     system("pause");
     return 0;
 }
