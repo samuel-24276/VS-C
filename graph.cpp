@@ -49,11 +49,14 @@ private:
     Type **time = NULL;
     Type **path = NULL; //path[][]为中介点数组，可以通过它获取最短路径
     Type *d = NULL;     //顶点与集合S的最短距离
+    Type ca;          //城市面积
 };
 
 //把本地文件的数据读入程序中的二维数组matrix
 void Rear::dataWrite()
 {
+    cout << "请输入城市面积：";
+    cin >> ca;
     ifstream file1("dis.txt", ios::in); //打开文件指针
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++)
@@ -82,10 +85,11 @@ public:
     void floyd(Rear &r);    //对可达时间矩阵进行优化
     //prim（）默认顶点0为出发点，函数返回MST的边权之和及行走路线
     pair<Type, vector<pair<int, int>>> prim(Rear &r); 
-    pair<Type, Type> asAndSd(Type **matrix);    //计算平均速度和可达时间标准差
+    pair<Type, Type> asAndSd(Rear& r);    //计算平均速度和可达时间标准差
     vector<int> getPath(Rear &r, int s, int t); //将prim（）隐含的中介点找出来
-    double mttc(Rear& r, vector<vector<int>>& arr_mttc);//最小环城时间,去掉注释可显示路径
-    double evaluate(Rear &r); //计算获得的交通数据的评分
+    //返回最小环城时间和单位面积旅行时间,去掉注释可显示路径
+    pair<Type,Type> mttc(Rear& r, vector<vector<int>>& arr_mttc);
+    Type evaluate(Rear &r, pair<Type,Type>& avg_time, Type ttua); //计算获得的交通数据的评分
 };
 
 void Handler::floyd(Rear &r)
@@ -142,14 +146,14 @@ vector<int> Handler::getPath(Rear &r, int s, int t)//将prim（）隐含的中�
 
 
 
-pair<Type, Type> Handler::asAndSd(Type **matrix)
+pair<Type, Type> Handler::asAndSd(Rear& r)
 {
     Type sum = 0, attr = 0, mrtv = 0, sdart = 0, rtdr = 0;
     for (int i = 0; i < n; ++i)
     {
         for (int j = i + 1; j < n; ++j)
         {
-            sum += matrix[i][j];
+            sum += r.time[i][j];
         }
     }
     int cnt = 0, m = n;
@@ -161,7 +165,7 @@ pair<Type, Type> Handler::asAndSd(Type **matrix)
     {
         for (int j = i + 1; j < n; ++j)
         {
-            mrtv += pow(matrix[i][j] - attr, 2);
+            mrtv += pow(r.time[i][j] - attr, 2);
         }
     }
     mrtv /= cnt;
@@ -206,9 +210,10 @@ pair<Type, vector<pair<int, int>>> Handler::prim(Rear &r) //s为初始顶点
     return make_pair(ans, path);
 }
 
-double Handler::mttc(Rear& r, vector<vector<int>>& arr_mttc)//最小环城时间,去掉注释可显示路径
+//返回最小环城时间和单位面积旅行时间,去掉注释可显示路径
+pair<Type,Type> Handler::mttc(Rear& r, vector<vector<int>>& arr_mttc)
 {
-    double mttc = 0;
+    Type mttc = 0;
     int t1 = arr_mttc[0][0], s1 = arr_mttc[0][arr_mttc[0].size()-1];
     mttc += r.time[s1][t1];
     cout << s1 << "->" << t1 << endl;
@@ -226,33 +231,40 @@ double Handler::mttc(Rear& r, vector<vector<int>>& arr_mttc)//最小环城时间
         cout << s2 << "->" << t2 << endl;      
         t1 = t2;
     }
-    return mttc;
+    Type ttua = mttc * 60 * 60 / r.ca;
+    return make_pair(mttc, ttua);
 }
-double Handler::evaluate(Rear &r) //计算获得的交通数据的评分
+Type Handler::evaluate(Rear &r, pair<Type,Type>& avg_time, Type ttua) //计算获得的交通数据的评分
 {
-    //===================计算优化后的平均可达时间和可达时间偏差率==================
-    floyd(r); //计算attr和rtdr之前保证时间矩阵已优化
-    pair<Type, Type> avg_time = asAndSd(r.time);
-    //cout << "attr=" << avg_time.first << endl;
-    //cout << "rtdr" << avg_time.second << endl;
     //==============从python程序生成的本地文件读取hlrr,mrcr,as,rrsdr的数据===========
     ifstream file("index_info.txt", ios::in); //打开文件指针
-    double info[4];
+    Type info[4];
     for (int i = 0; i < 4; i++)
         file >> info[i]; //将文件数据读入二维数组
     file.close();
-    double grade = 0;
+    cout << "高延时运行时间占比hlrr=" << info[0] << endl;
+    cout << "拥堵路段里程比mrcr=" << info[1] << endl;
+    cout << "平均速度as=" << info[2] << endl;
+    cout << "运行速度偏差率rrsdr=" << info[3] << endl;
+    Type grade = 0;
     //计算平均可达时间attr的得分
     if (avg_time.first > 1)
-        grade += 60 * 0.3;
+        grade += 60 * 0.2;
     else if (avg_time.first < 0.5)
-        grade += 100 * 0.3;
+        grade += 100 * 0.2;
     else
-        grade += 80 * 0.3;
+        grade += 80 * 0.2;
     //加上可达时间偏差率rtdr的得分
     if (avg_time.second > 40)
         grade += 60 * 0.1;
     else if (avg_time.second < 30)
+        grade += 100 * 0.1;
+    else
+        grade += 80 * 0.1;
+    //加上单位面积旅行时间ttua的得分
+    if(ttua>2)
+        grade += 60 * 0.1;
+    else if(ttua<1)
         grade += 100 * 0.1;
     else
         grade += 80 * 0.1;
@@ -394,9 +406,9 @@ int main()
     Front f; //前端显示页面
     //=======================获取图的信息===============================
     f.gra_info();
+    Rear r; //后端存储数据,一定要在gra_info()函数后声明，因为写入数据时要依靠gra_info()读入的n
     //=======================读取数据并写入数组========================
-    Rear r; //后端存储数据
-    r.dataWrite();
+    r.dataWrite();  //面积为-11293-平方千米
     cout << "初始距离矩阵为：" << endl;
     f.print(r, 2);
     cout << "初始速度矩阵为：" << endl;
@@ -420,11 +432,18 @@ int main()
     f.show_gra_info();
     cout << "最小生成树的路径为：" << endl;
     vector<vector<int>> arr_mttc = f.showShortestPath(h, r, size, res.second);
-    //====================计算最小环城时间和最终得分======================
+    //====================计算最小环城时间和单位面积旅行时间======================
     cout << "环城路线为:" << endl;
-    double mttc = h.mttc(r, arr_mttc);
-    cout << "最小环城时间：" << mttc << endl;
-    cout << "交通情况的最终得分：" << h.evaluate(r) << endl;
+    pair<Type, Type> ct = h.mttc(r, arr_mttc);
+    cout << "最小环城时间mttc：" << ct.first << endl;
+    cout << "单位面积旅行时间ttua=：" << ct.second << endl;
+    //===================计算优化后的平均可达时间和可达时间偏差率==================
+    pair<Type, Type> avg_time = h.asAndSd(r);
+    cout << "平均可达时间attr=" << avg_time.first << endl;
+    cout << "可达时间偏差率rtdr" << avg_time.second << endl;
+    //=============读取Python程序计算的hlrr,mrcr,as,rrsdr并做出评分================
+    double grade = h.evaluate(r, avg_time, ct.second);
+    cout << "交通情况的最终得分：" << grade << endl;
     system("pause");
     return 0;
 }
